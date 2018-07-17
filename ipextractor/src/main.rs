@@ -1,3 +1,5 @@
+extern crate ripquerier;
+
 fn main() {
-    println!("Hello, world!");
+  println!("Hello, world!");
 }

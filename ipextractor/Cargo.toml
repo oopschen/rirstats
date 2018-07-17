@@ -1,5 +1,5 @@
 [package]
-name = "ipextractor"
+name = "ripquerier"
 version = "0.1.0"
 authors = ["Ray <linxray@gmail.com>"]
 
