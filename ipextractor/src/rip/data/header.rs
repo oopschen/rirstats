@@ -1,14 +1,14 @@
-use chrono::Utc;
+use chrono::{Utc, Date};
 
 
 #[derive(Debug, PartialEq)]
-pub struct RIPHeader<'a> {
-  version: u8,
-  registry: RIPRegistry,
-  serial: &'a str,
-  records: u32,
-  start_date: Utc,
-  end_date: Utc,
+pub struct RIPHeader {
+ pub version: u8,
+ pub registry: RIPRegistry,
+ pub serial: String,
+ pub records: u32,
+ pub start_date: Date<Utc>,
+ pub end_date: Date<Utc>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -30,7 +30,7 @@ pub enum RIPRegistry {
 
 #[derive(Debug, PartialEq)]
 pub struct RIPSummary {
-  registry: RIPRegistry,
-  typ: RIPSummaryTyp,
-  count: u32,
+ pub registry: RIPRegistry,
+ pub typ: RIPSummaryTyp,
+ pub count: u32,
 }
