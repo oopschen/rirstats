@@ -2,7 +2,7 @@ use std::fs::File;
 use std::boxed::Box;
 use csv::{ReaderBuilder, Reader, Trim, Error, StringRecord};
 use chrono::{Date, Utc, TimeZone};
-use super::super::data::{RIPHeader, RIPRecord, RIPSummary, RIPRegistry};
+use super::super::data::{RIPHeader, RIPRecord, RIPSummary, RIPRegistry, RIPSummaryTyp};
 
 
 pub struct RIPFile<'a> {
@@ -13,7 +13,7 @@ pub struct RIPFile<'a> {
 pub trait RIPReader {
   fn header(&mut self) -> Option<RIPHeader> ;
 
-  fn next_summary(&self) -> Option<RIPSummary>;
+  fn next_summary(&mut self) -> Option<RIPSummary>;
 
   fn next_record(&self) -> Option<RIPRecord>;
 }
@@ -50,12 +50,12 @@ impl<'a> RIPReader for RIPFile<'a> {
 
         return Some(RIPHeader {
           version: parse_version(&read_record),
-          registry: parse_registry(&read_record),
+          registry: parse_registry(&read_record, 1),
           serial: match read_record.get(2) {
             Some(c) => c.to_string(),
             None => "".to_string(),
           },
-          records: parse_records_num(&read_record),
+          records: parse_u32(&read_record, 3),
           start_date: parse_start_date(&read_record),
           end_date: parse_end_date(&read_record),
 
@@ -71,7 +71,27 @@ impl<'a> RIPReader for RIPFile<'a> {
     None
   }
 
-  fn next_summary(&self) -> Option<RIPSummary> {
+  fn next_summary(&mut self) -> Option<RIPSummary> {
+    let mut read_record = StringRecord::new();
+    if let Ok(has_record) = self.reader.read_record(&mut read_record) {
+      if !has_record {
+        return None;
+      }
+      if let Some(read_content) = read_record.get(read_record.len() - 1) {
+        if "summary" != read_content.to_lowercase().as_str() {
+          return None;
+        }
+      } else {
+        return None;
+      }
+
+      return Some(
+        RIPSummary {
+          registry: parse_registry(&read_record, 0),
+          typ: parse_summary_typ(&read_record, 2),
+          count: parse_u32(&read_record, 4),
+        });
+    }
     None
   }
 
@@ -92,9 +112,9 @@ fn parse_version(record: &StringRecord) -> u8 {
   }
 }
 
-fn parse_registry(record: &StringRecord) -> RIPRegistry {
+fn parse_registry(record: &StringRecord, inx: usize) -> RIPRegistry {
   let def_val = RIPRegistry::RIPENCC;
-  match record.get(1) {
+  match record.get(inx) {
     Some(val) => match val.to_lowercase().as_str() {
       "apnic" => RIPRegistry::APNIC,
       "afrinic" => RIPRegistry::AFRINIC,
@@ -108,9 +128,9 @@ fn parse_registry(record: &StringRecord) -> RIPRegistry {
   }
 }
 
-fn parse_records_num(record: &StringRecord) -> u32 {
+fn parse_u32(record: &StringRecord, inx: usize) -> u32 {
   let def_val = 0;
-  match record.get(3) {
+  match record.get(inx) {
     Some(val) => match val.parse::<u32>() {
       Ok(parsedVal) => parsedVal,
       Err(_) => def_val,
@@ -142,6 +162,16 @@ fn parse_end_date(record: &StringRecord) -> Date<Utc> {
   }
 }
 
+fn parse_summary_typ(record: &StringRecord, inx: usize) -> RIPSummaryTyp{
+  match record.get(inx) {
+    Some(val) => match val.to_lowercase().as_str() {
+      "ipv4" => RIPSummaryTyp::IPV4,
+      "ipv6" => RIPSummaryTyp::IPV6,
+      _ => RIPSummaryTyp::ASN,
+    },
+    None => RIPSummaryTyp::ASN,
+  }
+}
 
 #[cfg(test)]
 mod test {
@@ -183,8 +213,29 @@ mod test {
 
     } else {
       assert!(false, "no header found");
+      return;
 
     }
+
+    // check summary
+    let expected_count = vec![8533, 39773, 8005];
+    let expected_typ= vec![RIPSummaryTyp::ASN, RIPSummaryTyp::IPV4, RIPSummaryTyp::IPV6];
+    let mut inx = 0;
+
+    while let Some(RIPSummary{
+      registry, typ, count
+    }) = rip_file.next_summary() {
+      assert_eq!(registry, RIPRegistry::APNIC);
+      assert_eq!(typ, expected_typ[inx]);
+      assert_eq!(count, expected_count[inx]);
+      inx += 1;
+      if inx > 2 {
+        break;
+      }
+
+    }
+    assert_eq!(3, inx);
+    assert_eq!(None, rip_file.next_summary());
 
   }
 }
