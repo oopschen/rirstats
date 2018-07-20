@@ -18,12 +18,6 @@ pub trait RIPReader {
 
   fn next_record(&mut self) -> Option<RIPRecord>;
 
-  fn set_cur_line(&mut self);
-
-  fn clear_cur_line(&mut self);
-
-  fn roll_2_cur_line_if_any(&mut self);
-
   fn is_done(&mut self) -> bool;
 }
 
@@ -46,27 +40,12 @@ impl<'a> RIPFile<'a> {
 
 impl<'a> RIPReader for RIPFile<'a> {
 
-  fn set_cur_line(&mut self) {
-    self.prev_position = Some(self.reader.position().clone());
-  }
-
-  fn clear_cur_line(&mut self) {
-    self.prev_position = None;
-  }
-
-  fn roll_2_cur_line_if_any(&mut self) {
-    if let Some(ref pos) = self.prev_position {
-      if let Ok(_) = self.reader.seek(pos.clone()) {
-      }
-    }
-    self.clear_cur_line();
-  }
 
   fn header(&mut self) -> Option<RIPHeader> {
     let mut read_record = StringRecord::new();
     loop {
-      self.roll_2_cur_line_if_any();
-      self.set_cur_line();
+      roll_2_cur_line_if_any(self);
+      set_cur_line(self);
       if let Ok(has_record) = self.reader.read_record(&mut read_record) {
         if !has_record {
           break;
@@ -76,7 +55,7 @@ impl<'a> RIPReader for RIPFile<'a> {
           break;
         }
 
-        self.clear_cur_line();
+        clear_cur_line(self);
 
         return Some(RIPHeader {
           version: parse_version(&read_record),
@@ -103,9 +82,9 @@ impl<'a> RIPReader for RIPFile<'a> {
 
   fn next_summary(&mut self) -> Option<RIPSummary> {
     let mut read_record = StringRecord::new();
-    self.roll_2_cur_line_if_any();
+    roll_2_cur_line_if_any(self);
 
-    self.set_cur_line();
+    set_cur_line(self);
     if let Ok(has_record) = self.reader.read_record(&mut read_record) {
       if !has_record {
         return None;
@@ -119,7 +98,7 @@ impl<'a> RIPReader for RIPFile<'a> {
         return None;
       }
 
-      self.clear_cur_line();
+      clear_cur_line(self);
 
       return Some(
         RIPSummary {
@@ -133,8 +112,8 @@ impl<'a> RIPReader for RIPFile<'a> {
 
   fn next_record(&mut self) -> Option<RIPRecord> {
     let mut read_record = StringRecord::new();
-    self.roll_2_cur_line_if_any();
-    self.set_cur_line();
+    roll_2_cur_line_if_any(self);
+    set_cur_line(self);
 
     if let Ok(has_record) = self.reader.read_record(&mut read_record) {
       if !has_record {
@@ -155,7 +134,7 @@ impl<'a> RIPReader for RIPFile<'a> {
         exts = Some(tmp_exts);
       }
 
-      self.clear_cur_line();
+      clear_cur_line(self);
 
       return Some(
         RIPRecord {
@@ -177,6 +156,23 @@ impl<'a> RIPReader for RIPFile<'a> {
     self.reader.is_done()
   }
 
+}
+
+fn set_cur_line(rip_file: &mut RIPFile) {
+  rip_file.prev_position = Some(rip_file.reader.position().clone());
+}
+
+
+fn roll_2_cur_line_if_any(rip_file: &mut RIPFile) {
+  if let Some(ref pos) = rip_file.prev_position {
+    if let Ok(_) = rip_file.reader.seek(pos.clone()) {
+    }
+  }
+  clear_cur_line(rip_file);
+}
+
+fn clear_cur_line(rip_file: &mut RIPFile) {
+  rip_file.prev_position = None;
 }
 
 fn parse_version(record: &StringRecord) -> u8 {
