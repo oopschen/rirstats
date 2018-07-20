@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::boxed::Box;
-use csv::{ReaderBuilder, Reader, Trim, Error, StringRecord};
+use csv::{ReaderBuilder, Reader, Trim, Error, StringRecord, Position};
 use chrono::{Date, Utc, TimeZone};
 use super::super::data::{RIPHeader, RIPRecord, RIPSummary, RIPRegistry, RIPSummaryTyp};
 
@@ -8,6 +8,7 @@ use super::super::data::{RIPHeader, RIPRecord, RIPSummary, RIPRegistry, RIPSumma
 pub struct RIPFile<'a> {
   file_path: &'a str,
   reader: Reader<File>,
+  prev_position: Option<Position>,
 }
 
 pub trait RIPReader {
@@ -15,7 +16,15 @@ pub trait RIPReader {
 
   fn next_summary(&mut self) -> Option<RIPSummary>;
 
-  fn next_record(&self) -> Option<RIPRecord>;
+  fn next_record(&mut self) -> Option<RIPRecord>;
+
+  fn set_cur_line(&mut self);
+
+  fn clear_cur_line(&mut self);
+
+  fn roll_2_cur_line_if_any(&mut self);
+
+  fn is_done(&mut self) -> bool;
 }
 
 impl<'a> RIPFile<'a> {
@@ -28,7 +37,8 @@ impl<'a> RIPFile<'a> {
 
     Ok(RIPFile {
       file_path: file_path,
-      reader: csv_reader
+      reader: csv_reader,
+      prev_position: None,
     })
   }
 
@@ -36,17 +46,37 @@ impl<'a> RIPFile<'a> {
 
 impl<'a> RIPReader for RIPFile<'a> {
 
+  fn set_cur_line(&mut self) {
+    self.prev_position = Some(self.reader.position().clone());
+  }
+
+  fn clear_cur_line(&mut self) {
+    self.prev_position = None;
+  }
+
+  fn roll_2_cur_line_if_any(&mut self) {
+    if let Some(ref pos) = self.prev_position {
+      if let Ok(_) = self.reader.seek(pos.clone()) {
+      }
+    }
+    self.clear_cur_line();
+  }
+
   fn header(&mut self) -> Option<RIPHeader> {
     let mut read_record = StringRecord::new();
     loop {
+      self.roll_2_cur_line_if_any();
+      self.set_cur_line();
       if let Ok(has_record) = self.reader.read_record(&mut read_record) {
         if !has_record {
           break;
         }
 
         if 7 != read_record.len() {
-          continue;
+          break;
         }
+
+        self.clear_cur_line();
 
         return Some(RIPHeader {
           version: parse_version(&read_record),
@@ -56,8 +86,8 @@ impl<'a> RIPReader for RIPFile<'a> {
             None => "".to_string(),
           },
           records: parse_u32(&read_record, 3),
-          start_date: parse_start_date(&read_record),
-          end_date: parse_end_date(&read_record),
+          start_date: parse_record_date(&read_record, 4),
+          end_date: parse_record_date(&read_record, 5),
 
         });
 
@@ -73,10 +103,14 @@ impl<'a> RIPReader for RIPFile<'a> {
 
   fn next_summary(&mut self) -> Option<RIPSummary> {
     let mut read_record = StringRecord::new();
+    self.roll_2_cur_line_if_any();
+
+    self.set_cur_line();
     if let Ok(has_record) = self.reader.read_record(&mut read_record) {
       if !has_record {
         return None;
       }
+
       if let Some(read_content) = read_record.get(read_record.len() - 1) {
         if "summary" != read_content.to_lowercase().as_str() {
           return None;
@@ -84,6 +118,8 @@ impl<'a> RIPReader for RIPFile<'a> {
       } else {
         return None;
       }
+
+      self.clear_cur_line();
 
       return Some(
         RIPSummary {
@@ -95,8 +131,50 @@ impl<'a> RIPReader for RIPFile<'a> {
     None
   }
 
-  fn next_record(&self) -> Option<RIPRecord> {
+  fn next_record(&mut self) -> Option<RIPRecord> {
+    let mut read_record = StringRecord::new();
+    self.roll_2_cur_line_if_any();
+    self.set_cur_line();
+
+    if let Ok(has_record) = self.reader.read_record(&mut read_record) {
+      if !has_record {
+        return None;
+      }
+
+      if 6 > read_record.len() {
+        return None
+      }
+
+      let mut exts = None;
+      if 7 < read_record.len() {
+        let mut tmp_exts = vec![];
+        for iter_inx in 7..read_record.len() {
+          tmp_exts.push(parse_string(&read_record, iter_inx));
+        }
+
+        exts = Some(tmp_exts);
+      }
+
+      self.clear_cur_line();
+
+      return Some(
+        RIPRecord {
+          registry: parse_registry(&read_record, 0),
+          cc: parse_string(&read_record, 1),
+          typ: parse_summary_typ(&read_record, 2),
+          start: parse_string(&read_record, 3),
+          value: parse_u32(&read_record, 4),
+          date: parse_record_date(&read_record, 5),
+          status: parse_string(&read_record, 6),
+          exts,
+        }
+      );
+    }
     None
+  }
+
+  fn is_done(&mut self) -> bool {
+    self.reader.is_done()
   }
 
 }
@@ -132,7 +210,7 @@ fn parse_u32(record: &StringRecord, inx: usize) -> u32 {
   let def_val = 0;
   match record.get(inx) {
     Some(val) => match val.parse::<u32>() {
-      Ok(parsedVal) => parsedVal,
+      Ok(parsed_val) => parsed_val,
       Err(_) => def_val,
     },
 
@@ -144,19 +222,12 @@ fn parse_date(date_str: &str) -> Date<Utc> {
   let date_with_tz = date_str.to_string() + "000000";
   match Utc.datetime_from_str(&date_with_tz, "%Y%m%d%H%M%S") {
     Ok(e) => e.date(),
-    Err(e) => Utc::today(),
+    Err(_) => Utc::today(),
   }
 }
 
-fn parse_start_date(record: &StringRecord) -> Date<Utc> {
-  match record.get(4) {
-    Some(val) => parse_date(val),
-    None => Utc::today(),
-  }
-}
-
-fn parse_end_date(record: &StringRecord) -> Date<Utc> {
-  match record.get(5) {
+fn parse_record_date(record: &StringRecord, inx: usize) -> Date<Utc> {
+  match record.get(inx) {
     Some(val) => parse_date(val),
     None => Utc::today(),
   }
@@ -173,8 +244,15 @@ fn parse_summary_typ(record: &StringRecord, inx: usize) -> RIPSummaryTyp{
   }
 }
 
+fn parse_string(record: &StringRecord, inx: usize) -> String {
+  match record.get(inx) {
+    Some(val) => val.to_string(),
+    None => "".to_string(),
+  }
+}
+
 #[cfg(test)]
-mod test {
+mod tests {
   use std::env;
   use super::*;
 
@@ -237,5 +315,43 @@ mod test {
     assert_eq!(3, inx);
     assert_eq!(None, rip_file.next_summary());
 
+    // check record
+    if let Some(RIPRecord {
+      registry, cc, typ, start, value, date, status, exts
+    }) = rip_file.next_record() {
+      let formatter = "%Y%m%d";
+      assert_eq!(registry, RIPRegistry::APNIC);
+      assert_eq!(cc, "JP");
+      assert_eq!(typ, RIPSummaryTyp::ASN);
+      assert_eq!(start, "173");
+      assert_eq!(value, 1);
+      assert_eq!(date.format(formatter).to_string(), "20020801");
+      assert_eq!(status, "allocated");
+      assert_eq!(exts, None);
+    } else {
+      assert!(false, "no record found, but must have");
+    }
+
+    while let Some(RIPRecord {
+      registry, cc, typ, start, value, date, status, exts
+    }) = rip_file.next_record() {
+      let formatter = "%Y%m%d";
+      if RIPSummaryTyp::IPV4 != typ {
+        continue;
+      }
+      assert_eq!(registry, RIPRegistry::APNIC);
+      assert_eq!(cc, "AU");
+      assert_eq!(start, "1.0.0.0");
+      assert_eq!(value, 256);
+      assert_eq!(date.format(formatter).to_string(), "20110811");
+      assert_eq!(status, "assigned");
+      assert_eq!(exts, None);
+
+      assert!(!rip_file.is_done());
+      return;
+
+    }
+
+    assert!(false, "no ipv4 found");
   }
 }

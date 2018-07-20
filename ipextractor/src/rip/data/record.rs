@@ -3,15 +3,15 @@ use super::header::{RIPRegistry, RIPSummaryTyp};
 
 
 #[derive(Debug, PartialEq)]
-pub struct RIPRecord<'a> {
-  registry: RIPRegistry,
-  cc: &'a str,
-  typ: RIPSummaryTyp,
-  start: &'a str,
-  value: u32,
-  date: Date<Utc>,
-  status: &'a str,
-  exts: Option<Vec<&'a str>>,
+pub struct RIPRecord {
+  pub registry: RIPRegistry,
+  pub cc: String,
+  pub typ: RIPSummaryTyp,
+  pub start: String,
+  pub value: u32,
+  pub date: Date<Utc>,
+  pub status: String,
+  pub exts: Option<Vec<String>>,
 }
 
 #[cfg(test)]
@@ -22,12 +22,12 @@ mod tests {
   fn riprecord_init() {
     let record = RIPRecord {
       registry: RIPRegistry::AFRINIC,
-      cc: "CN",
+      cc: "CN".to_string(),
       typ: RIPSummaryTyp::IPV4,
-      start: "10.119.128.33",
+      start: "10.119.128.33".to_string(),
       value: 1024,
       date: Utc::today(),
-      status: "allocated",
+      status: "allocated".to_string(),
       exts: None
     };
 
