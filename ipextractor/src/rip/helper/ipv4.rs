@@ -3,7 +3,32 @@ use std::net::Ipv4Addr;
 
 
 pub fn ipv4_count_2_mask_represents(ipv4_addr: &str, count: u32) -> Box<Vec<String>> {
-  Box::new(vec!["d".to_string()])
+  // while find next one
+  //  assmble ip=ip prefix/(1 << (31 - pos))
+  //  set ip prefix = ip + (1 << (32 - pos))
+  let mut result = vec![];
+  let mut cur_one_pos = 31;
+  let mut ipv4_prefix = ipv4_2_u32(ipv4_addr);
+
+  loop {
+    if let Some(one_pos) = find_next_one_pos(count, cur_one_pos) {
+      if 1 > one_pos {
+        result.push(u32_2_ipv4_str(ipv4_prefix));
+      } else {
+        result.push(u32_2_ipv4_str(ipv4_prefix) + "/" + &(32 - one_pos).to_string());
+      }
+      ipv4_prefix = ipv4_prefix + (1 << one_pos);
+      if 1 > one_pos {
+        break;
+      }
+      cur_one_pos = one_pos - 1;
+
+    } else {
+      break;
+
+    }
+  }
+  Box::new(result)
 }
 
 pub fn ipv4_2_u32(ipv4_addr: &str) -> u32 {
@@ -58,8 +83,8 @@ mod tests {
 
     let count_is_power_2_not_cidr = ipv4_count_2_mask_represents("192.168.1.0", 3);
     assert_eq!(2, count_is_power_2_not_cidr.len());
-    assert_eq!("192.168.1.0/2", count_is_power_2_not_cidr[2]);
-    assert_eq!("192.168.1.2", count_is_power_2_not_cidr[3]);
+    assert_eq!("192.168.1.0/31", count_is_power_2_not_cidr[0]);
+    assert_eq!("192.168.1.2", count_is_power_2_not_cidr[1]);
   }
 
   #[test]
@@ -74,6 +99,7 @@ mod tests {
     assert_eq!(Some(0u8), find_next_one_pos(0x5, 1));
     assert_eq!(Some(0u8), find_next_one_pos(0x1, 31));
     assert_eq!(None, find_next_one_pos(0x0, 31));
+    assert_eq!(None, find_next_one_pos(256, 1));
   }
 
 }
