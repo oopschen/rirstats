@@ -1,4 +1,4 @@
-name:
+name: ripquery
 version: 1.0.0
 author: Ray. linxray@gmail.com
 about: A rip querier with some filters.
@@ -8,12 +8,14 @@ args:
         short: c
         long: cc
         multiple: true
+        takes_value: true
 
     - status:
         help: filter for record status, default for allocated.
         short: s
         long: status
         multiple: true
+        takes_value: true
         possible_values:
             - allocated
             - assigned
@@ -23,6 +25,7 @@ args:
         short: t
         long: type
         multiple: true
+        takes_value: true
         possible_values:
             - ipv4
             - ipv6
@@ -32,3 +35,4 @@ args:
         help: input file path.
         short: i
         long: input
+        takes_value: true

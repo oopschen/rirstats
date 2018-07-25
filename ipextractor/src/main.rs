@@ -1,10 +1,12 @@
-#[macro_use]
+#[macro_use(load_yaml)]
 extern crate clap;
 extern crate ripquerier;
 
+use std::env;
+use std::path::Path;
+use clap::App;
 use ripquerier::rip::process_rip;
 use ripquerier::rip::opt::new_filter_from_vec;
-use clap::App;
 
 
 fn main() {
@@ -18,6 +20,26 @@ fn main() {
       return;
     },
   };
+
+  let input_path = Path::new(input_file);
+  let mut real_file = input_file.to_string();
+  if input_path.is_relative() {
+    if let Ok(mut cur_dir) = env::current_dir() {
+      cur_dir.push(input_file);
+      real_file = match cur_dir.to_str() {
+        None => {
+          eprintln!("Can not found current directory");
+          return;
+        },
+        Some(p) => p.to_string(),
+      }
+
+    } else {
+      eprintln!("Can not found current directory");
+      return;
+
+    }
+  }
 
   let mut filters = vec![];
 
@@ -53,9 +75,9 @@ fn main() {
   }
 
   if 1 > filters.len() {
-    process_rip(input_file, None);
+    process_rip(&real_file, None);
   } else {
-    process_rip(input_file, Some(
+    process_rip(&real_file, Some(
       new_filter_from_vec(&filters).as_ref()
       )
     );

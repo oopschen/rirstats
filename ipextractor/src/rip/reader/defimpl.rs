@@ -5,8 +5,7 @@ use chrono::{Date, Utc, TimeZone};
 use super::super::data::{RIPHeader, RIPRecord, RIPSummary, RIPRegistry, RIPSummaryTyp};
 
 
-pub struct RIPFile<'a> {
-  file_path: &'a str,
+pub struct RIPFile {
   reader: Reader<File>,
   prev_position: Option<Position>,
 }
@@ -21,23 +20,22 @@ pub trait RIPReader {
   fn is_done(&mut self) -> bool;
 }
 
-impl<'a> RIPFile<'a> {
+impl RIPFile {
 
-  pub fn new(file_path: &'a str) -> Result<RIPFile, Box<Error>> {
+  pub fn new(file_path: &str) -> Result<RIPFile, Box<Error>> {
     let csv_reader = ReaderBuilder::new().delimiter(b'|')
       .has_headers(false).flexible(true)
       .trim(Trim::All).comment(Some(b'#'))
       .from_path(file_path)?;
 
     Ok(RIPFile {
-      file_path: file_path,
       reader: csv_reader,
       prev_position: None,
     })
   }
 }
 
-impl<'a> RIPReader for RIPFile<'a> {
+impl RIPReader for RIPFile {
 
 
   fn header(&mut self) -> Option<RIPHeader> {
