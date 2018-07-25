@@ -23,7 +23,7 @@ pub trait RIPReader {
 
 impl<'a> RIPFile<'a> {
 
-  fn new(file_path: &'a str) -> Result<RIPFile, Box<Error>> {
+  pub fn new(file_path: &'a str) -> Result<RIPFile, Box<Error>> {
     let csv_reader = ReaderBuilder::new().delimiter(b'|')
       .has_headers(false).flexible(true)
       .trim(Trim::All).comment(Some(b'#'))
@@ -35,7 +35,6 @@ impl<'a> RIPFile<'a> {
       prev_position: None,
     })
   }
-
 }
 
 impl<'a> RIPReader for RIPFile<'a> {

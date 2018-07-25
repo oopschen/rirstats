@@ -16,7 +16,7 @@ impl Matcher for FilterCondition {
 
 #[macro_export]
 macro_rules! new_filter_condition {
-  ( $( $f:expr, $v:expr),* ) => {
+  ( $( $f:expr, $v:expr ),* ) => {
     {
       let mut temp_conditions = vec![];
       $(
@@ -26,6 +26,19 @@ macro_rules! new_filter_condition {
         });
        )*
       temp_conditions
+    }
+  }
+}
+
+#[macro_export]
+macro_rules! match_fields {
+  ( $condition:ident, $( $f:expr, $v:expr ),* ) => {
+    {
+      let mut flag = true;
+      $(
+        flag &= $condition.match_field($f, $v);
+       )*
+      flag
     }
   }
 }
