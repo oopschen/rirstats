@@ -1,6 +1,27 @@
+use std::boxed::Box;
+
+
 pub struct FilterCondition {
   field_name: String,
   field_value: String,
+}
+
+pub fn new_filter_from_vec(filters: &Vec<String>) -> Box<Vec<FilterCondition>> {
+  if 0 != filters.len() {
+    return Box::new(vec![]);
+  }
+
+  let mut i = 0;
+  let mut result = Box::new(vec![]);
+  while i < filters.len() {
+    result.push(FilterCondition {
+      field_name: filters[i].clone(),
+      field_value: filters[i+1].clone(),
+    });
+    i += 2;
+  }
+
+  result
 }
 
 pub trait Matcher {

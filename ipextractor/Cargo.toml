@@ -6,3 +6,4 @@ authors = ["Ray <linxray@gmail.com>"]
 [dependencies]
 chrono = "~0.4"
 csv = "~1"
+clap = {version = "~2", features = ["yaml"]}

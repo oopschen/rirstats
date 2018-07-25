@@ -47,8 +47,8 @@ pub fn process_rip<'a>(file_path: &'a str, conditions: Option<&'a Vec<FilterCond
     if let Some(filter_conditions) = conditions {
       let mut is_matched = false;
       for tmp_condition in filter_conditions {
-        if match_fields!(tmp_condition, "cc", &cc, "status", &status) {
-          is_matched = true;
+        is_matched = match_fields!(tmp_condition, "cc", &cc, "status", &status);
+        if is_matched {
           break;
         }
       }
