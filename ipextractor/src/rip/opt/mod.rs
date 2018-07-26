@@ -1,13 +1,13 @@
 use std::boxed::Box;
 
-
+#[derive(Debug)]
 pub struct FilterCondition {
   field_name: String,
   field_value: String,
 }
 
 pub fn new_filter_from_vec(filters: &Vec<String>) -> Box<Vec<FilterCondition>> {
-  if 0 != filters.len() {
+  if 0 != filters.len() % 2 {
     return Box::new(vec![]);
   }
 
@@ -26,13 +26,22 @@ pub fn new_filter_from_vec(filters: &Vec<String>) -> Box<Vec<FilterCondition>> {
 
 pub trait Matcher {
   fn match_field(&self, field_name: &str, field_value: &str) -> bool;
+  fn is_field(&self, field_name: &str) -> bool;
+  fn match_value(&self, field_value: &str) -> bool;
 }
 
 impl Matcher for FilterCondition {
   fn match_field(&self, field_name: &str, field_value: &str) -> bool {
-    self.field_name == field_name && self.field_value == field_value
+    self.is_field(field_name) && self.match_value(field_value)
   }
 
+  fn is_field(&self, field_name: &str) -> bool {
+    self.field_name == field_name
+  }
+
+  fn match_value(&self, field_value: &str) -> bool {
+    self.field_value == field_value
+  }
 }
 
 #[macro_export]
@@ -53,13 +62,24 @@ macro_rules! new_filter_condition {
 
 #[macro_export]
 macro_rules! match_fields {
-  ( $condition:ident, $( $f:expr, $v:expr ),* ) => {
+  ( $condition:ident,  $defb:block, $( $f:expr, $b:block),* ) => {
     {
-      let mut flag = true;
       $(
-        flag &= $condition.match_field($f, $v);
+        if $condition.is_field($f) {
+          $b
+        }
        )*
-      flag
+
+      $defb
+    }
+  }
+}
+
+#[macro_export]
+macro_rules! match_field_value {
+  ( $condition:ident, $actual_value:expr ) => {
+    {
+        $condition.match_value($actual_value)
     }
   }
 }

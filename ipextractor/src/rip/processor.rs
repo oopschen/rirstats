@@ -3,7 +3,6 @@ use super::data::{RIPSummaryTyp, RIPRecord, RIPSummary, RIPHeader};
 use super::opt::{FilterCondition, Matcher};
 use super::helper::ipv4_count_2_mask_represents;
 
-
 pub fn process_rip<'a>(file_path: &'a str, conditions: Option<&'a Vec<FilterCondition>>) {
   // new reader
   // loop:
@@ -40,24 +39,15 @@ pub fn process_rip<'a>(file_path: &'a str, conditions: Option<&'a Vec<FilterCond
     println!("Type {:?} has {} records", typ, count);
   }
 
-  while let Some(RIPRecord {
-      cc, typ, start, value, status, ..
-  }) = rip_file.next_record() {
+  while let Some(next_record) = rip_file.next_record() {
     // filter records
     if let Some(filter_conditions) = conditions {
-      let mut is_matched = false;
-      for tmp_condition in filter_conditions {
-        is_matched = match_fields!(tmp_condition, "cc", &cc, "status", &status);
-        if is_matched {
-          break;
-        }
-      }
-
-      if !is_matched {
+      if !match_conditions(filter_conditions, &next_record) {
         continue;
       }
     }
     // end
+    let RIPRecord {typ, start, value, ..} = next_record;
 
     match typ {
       RIPSummaryTyp::IPV4 => {
@@ -84,4 +74,55 @@ pub fn process_rip<'a>(file_path: &'a str, conditions: Option<&'a Vec<FilterCond
       },
     }
   }
+}
+
+// different type using &&, same type using ||
+fn match_conditions<'a>(conditions: &'a Vec<FilterCondition>, record: &'a RIPRecord) -> bool {
+  // 0 cc, 1 typ, 2 status
+  let mut flag_vec: Vec<Option<bool>> = vec![None; 3];
+
+  for tmp_condition in conditions {
+    match_fields!(
+      tmp_condition,
+
+      {
+        or_condition(&mut flag_vec, 2, &record.status, tmp_condition);
+      },
+
+      "cc", { or_condition(&mut flag_vec, 0, &record.cc, tmp_condition); },
+
+      "typ",
+      {
+        let tmp_type_str = format!("{:?}", record.typ).to_lowercase();
+        or_condition(&mut flag_vec, 1, &tmp_type_str, tmp_condition);
+      }
+    )
+
+  }
+
+  for flag in flag_vec {
+    if let Some(f) = flag {
+      if !f {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+fn or_condition<'a>(
+  dest_flag_vec: &'a mut Vec<Option<bool>>, inx: usize,
+  actual_value: &'a str, condition: &'a FilterCondition
+  ) -> bool {
+  let match_flag = match_field_value!(condition, actual_value);
+
+  if let Some(flag) = dest_flag_vec[inx] {
+    dest_flag_vec[inx] = Some(flag || match_flag);
+    return flag | match_flag;
+
+  } else {
+    dest_flag_vec[inx] = Some(match_flag);
+    return match_flag;
+  }
+
 }
