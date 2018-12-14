@@ -61,7 +61,7 @@ fn main() {
       filters.push("allocated".to_string());
   }
 
-  if let Some(mut record_typs) = matches.values_of("record_typs") {
+  if let Some(mut record_typs) = matches.values_of("record_typ") {
     while let Some(item) = record_typs.next() {
       filters.push("typ".to_string());
       filters.push(item.to_lowercase());
